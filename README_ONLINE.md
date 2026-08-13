@@ -27,3 +27,7 @@ Nome: VIP Barbearia
 
 ## Desenvolvimento local
 Se `DATABASE_URL` não existir, o app continua usando SQLite localmente.
+
+
+## Correção de deploy
+A dependência psycopg foi fixada em 3.2.10, versão disponível para o ambiente de build mostrado pelo Render.

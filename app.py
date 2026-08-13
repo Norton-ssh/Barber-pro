@@ -198,5 +198,8 @@ def horarios():
     c=db(); used=[r["hora"] for r in c.execute("SELECT hora FROM agendamentos WHERE barbeiro_id=? AND data=? AND status!='Cancelado'",(bar,dt)).fetchall()]; c.close()
     return jsonify({"ocupados":used})
 
+# Initialize the database when Gunicorn imports app:app.
+init()
+
 if __name__=="__main__":
-    init(); app.run(host="0.0.0.0",port=5000)
+    app.run(host="0.0.0.0",port=5000)
