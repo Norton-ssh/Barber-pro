@@ -1,1 +1,11 @@
-{% extends "base.html" %}{% block content %}<h1>Barbeiros</h1><div class="grid"><div class="panel"><h2>Novo barbeiro</h2><form method="post"><div class="field"><label>Nome</label><input name="nome" required></div><div class="field"><label>Telefone</label><input name="telefone"></div><div class="field"><label>Comissão %</label><input name="comissao" type="number" step=".01" value="40"></div><button class="btn">Cadastrar</button></form></div><div class="panel"><table class="table"><tr><th>Nome</th><th>Telefone</th><th>Comissão</th></tr>{% for r in rows %}<tr><td>{{r.nome}}</td><td>{{r.telefone}}</td><td>{{r.comissao}}%</td></tr>{% endfor %}</table></div></div>{% endblock %}
+{% extends "base.html" %}{% block content %}
+<div class="top"><h1>Barbeiros</h1><a class="btn" href="/barbeiros">+ Novo barbeiro</a></div>
+<div class="grid"><div class="panel"><h2>{% if edit %}Editar barbeiro{% else %}Novo barbeiro{% endif %}</h2>
+<form method="post" action="{% if edit %}/barbeiros/editar/{{edit.id}}{% else %}/barbeiros{% endif %}">
+<div class="field"><label>{{cfg.FIELD_LABELS.barber_name}}</label><input name="nome" value="{{edit.nome if edit else ''}}" required></div>
+<div class="field"><label>{{cfg.FIELD_LABELS.phone}}</label><input name="telefone" value="{{edit.telefone if edit else ''}}"></div>
+<div class="field"><label>{{cfg.FIELD_LABELS.commission}}</label><input name="comissao" type="number" step=".01" value="{{edit.comissao if edit else 40}}"></div>
+{% if edit %}<div class="field"><label><input type="checkbox" name="ativo" {% if edit.ativo %}checked{% endif %}> Ativo</label></div>{% endif %}
+<button class="btn">{% if edit %}Salvar alterações{% else %}Cadastrar{% endif %}</button> {% if edit %}<a class="btn gray" href="/barbeiros">Cancelar</a>{% endif %}
+</form></div><div class="panel"><table class="table"><tr><th>Nome</th><th>Telefone</th><th>Comissão</th><th>Status</th><th>Ações</th></tr>
+{% for r in rows %}<tr><td>{{r.nome}}</td><td>{{r.telefone}}</td><td>{{r.comissao}}%</td><td>{{'Ativo' if r.ativo else 'Inativo'}}</td><td class="actions"><a class="btn gray" href="/barbeiros/editar/{{r.id}}">Editar</a><form method="post" action="/barbeiros/excluir/{{r.id}}"><button class="btn red" onclick="return confirm('Excluir este barbeiro?')">Excluir</button></form></td></tr>{% endfor %}</table></div></div>{% endblock %}

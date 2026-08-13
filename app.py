@@ -3,6 +3,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 import sqlite3, os
 from datetime import datetime, date
 from functools import wraps
+import config
 
 app=Flask(__name__)
 app.secret_key=os.environ.get("SECRET_KEY","dev-only-change-this-secret")
@@ -18,6 +19,8 @@ class CompatConnection:
     def executemany(self, sql, seq):
         if self.postgres:
             sql=sql.replace("?", "%s")
+            with self.conn.cursor() as cur:
+                return cur.executemany(sql, seq)
         return self.conn.executemany(sql, seq)
     def executescript(self, script):
         return self.conn.execute(script)
@@ -63,6 +66,10 @@ def init():
         c.executemany("INSERT INTO barbeiros(nome,comissao) VALUES(?,?)",[("Carlos",40),("Rafael",40)])
     c.commit(); c.close()
 
+@app.context_processor
+def inject_config():
+    return {"cfg": config}
+
 def login_required(f):
     @wraps(f)
     def w(*a,**k):
@@ -100,10 +107,23 @@ def dashboard():
 def clientes():
     c=db()
     if request.method=="POST":
-        c.execute("INSERT INTO clientes(nome,telefone,email,aniversario,observacoes) VALUES(?,?,?,?,?)",
-        (request.form["nome"],request.form.get("telefone",""),request.form.get("email",""),request.form.get("aniversario",""),request.form.get("observacoes",""))); c.commit(); flash("Cliente cadastrado.")
+        c.execute("INSERT INTO clientes(nome,telefone,email,aniversario,observacoes) VALUES(?,?,?,?,?)",(request.form["nome"],request.form.get("telefone",""),request.form.get("email",""),request.form.get("aniversario",""),request.form.get("observacoes",""))); c.commit(); flash("Cliente cadastrado.")
     rows=c.execute("SELECT * FROM clientes ORDER BY nome").fetchall(); c.close()
-    return render_template("clientes.html",rows=rows)
+    return render_template("clientes.html",rows=rows,edit=None)
+
+@app.route("/clientes/editar/<int:id>",methods=["GET","POST"])
+@login_required
+def editar_cliente(id):
+    c=db()
+    if request.method=="POST":
+        c.execute("UPDATE clientes SET nome=?,telefone=?,email=?,aniversario=?,observacoes=? WHERE id=?",(request.form["nome"],request.form.get("telefone",""),request.form.get("email",""),request.form.get("aniversario",""),request.form.get("observacoes",""),id)); c.commit(); c.close(); flash("Cliente atualizado."); return redirect(url_for("clientes"))
+    edit=c.execute("SELECT * FROM clientes WHERE id=?",(id,)).fetchone(); rows=c.execute("SELECT * FROM clientes ORDER BY nome").fetchall(); c.close()
+    return render_template("clientes.html",rows=rows,edit=edit)
+
+@app.route("/clientes/excluir/<int:id>",methods=["POST"])
+@login_required
+def excluir_cliente(id):
+    c=db(); c.execute("DELETE FROM clientes WHERE id=?",(id,)); c.commit(); c.close(); flash("Cliente excluído."); return redirect(url_for("clientes"))
 
 @app.route("/barbeiros",methods=["GET","POST"])
 @login_required
@@ -111,7 +131,20 @@ def barbeiros():
     c=db()
     if request.method=="POST":
         c.execute("INSERT INTO barbeiros(nome,telefone,comissao) VALUES(?,?,?)",(request.form["nome"],request.form.get("telefone",""),request.form.get("comissao",40))); c.commit(); flash("Barbeiro cadastrado.")
-    rows=c.execute("SELECT * FROM barbeiros ORDER BY nome").fetchall(); c.close(); return render_template("barbeiros.html",rows=rows)
+    rows=c.execute("SELECT * FROM barbeiros ORDER BY nome").fetchall(); c.close(); return render_template("barbeiros.html",rows=rows,edit=None)
+
+@app.route("/barbeiros/editar/<int:id>",methods=["GET","POST"])
+@login_required
+def editar_barbeiro(id):
+    c=db()
+    if request.method=="POST":
+        c.execute("UPDATE barbeiros SET nome=?,telefone=?,comissao=?,ativo=? WHERE id=?",(request.form["nome"],request.form.get("telefone",""),request.form.get("comissao",40),1 if request.form.get("ativo") else 0,id)); c.commit(); c.close(); flash("Barbeiro atualizado."); return redirect(url_for("barbeiros"))
+    edit=c.execute("SELECT * FROM barbeiros WHERE id=?",(id,)).fetchone(); rows=c.execute("SELECT * FROM barbeiros ORDER BY nome").fetchall(); c.close(); return render_template("barbeiros.html",rows=rows,edit=edit)
+
+@app.route("/barbeiros/excluir/<int:id>",methods=["POST"])
+@login_required
+def excluir_barbeiro(id):
+    c=db(); c.execute("DELETE FROM barbeiros WHERE id=?",(id,)); c.commit(); c.close(); flash("Barbeiro excluído."); return redirect(url_for("barbeiros"))
 
 @app.route("/servicos",methods=["GET","POST"])
 @login_required
@@ -119,7 +152,20 @@ def servicos():
     c=db()
     if request.method=="POST":
         c.execute("INSERT INTO servicos(nome,duracao,preco) VALUES(?,?,?)",(request.form["nome"],request.form.get("duracao",30),request.form.get("preco",0))); c.commit(); flash("Serviço cadastrado.")
-    rows=c.execute("SELECT * FROM servicos ORDER BY nome").fetchall(); c.close(); return render_template("servicos.html",rows=rows)
+    rows=c.execute("SELECT * FROM servicos ORDER BY nome").fetchall(); c.close(); return render_template("servicos.html",rows=rows,edit=None)
+
+@app.route("/servicos/editar/<int:id>",methods=["GET","POST"])
+@login_required
+def editar_servico(id):
+    c=db()
+    if request.method=="POST":
+        c.execute("UPDATE servicos SET nome=?,duracao=?,preco=?,ativo=? WHERE id=?",(request.form["nome"],request.form.get("duracao",30),request.form.get("preco",0),1 if request.form.get("ativo") else 0,id)); c.commit(); c.close(); flash("Serviço atualizado."); return redirect(url_for("servicos"))
+    edit=c.execute("SELECT * FROM servicos WHERE id=?",(id,)).fetchone(); rows=c.execute("SELECT * FROM servicos ORDER BY nome").fetchall(); c.close(); return render_template("servicos.html",rows=rows,edit=edit)
+
+@app.route("/servicos/excluir/<int:id>",methods=["POST"])
+@login_required
+def excluir_servico(id):
+    c=db(); c.execute("DELETE FROM servicos WHERE id=?",(id,)); c.commit(); c.close(); flash("Serviço excluído."); return redirect(url_for("servicos"))
 
 @app.route("/agenda",methods=["GET","POST"])
 @login_required
@@ -136,6 +182,24 @@ def agenda():
     LEFT JOIN clientes cl ON cl.id=a.cliente_id LEFT JOIN barbeiros b ON b.id=a.barbeiro_id LEFT JOIN servicos s ON s.id=a.servico_id WHERE a.data=? ORDER BY a.hora""",(d,)).fetchall()
     clients=c.execute("SELECT * FROM clientes ORDER BY nome").fetchall(); bars=c.execute("SELECT * FROM barbeiros WHERE ativo=1 ORDER BY nome").fetchall(); services=c.execute("SELECT * FROM servicos WHERE ativo=1 ORDER BY nome").fetchall(); c.close()
     return render_template("agenda.html",rows=rows,clientes=clients,barbeiros=bars,servicos=services,data=d)
+
+@app.route("/agenda/editar/<int:id>",methods=["GET","POST"])
+@login_required
+def editar_agendamento(id):
+    c=db()
+    if request.method=="POST":
+        cli,bar,ser,dt,hr=[request.form[x] for x in ("cliente","barbeiro","servico","data","hora")]
+        busy=c.execute("SELECT 1 FROM agendamentos WHERE barbeiro_id=? AND data=? AND hora=? AND status!='Cancelado' AND id!=?",(bar,dt,hr,id)).fetchone()
+        if busy: flash("Horário ocupado para este barbeiro.")
+        else:
+            c.execute("UPDATE agendamentos SET cliente_id=?,barbeiro_id=?,servico_id=?,data=?,hora=?,observacoes=? WHERE id=?",(cli,bar,ser,dt,hr,request.form.get("observacoes",""),id)); c.commit(); c.close(); flash("Agendamento atualizado."); return redirect(url_for("agenda",data=dt))
+    edit=c.execute("SELECT * FROM agendamentos WHERE id=?",(id,)).fetchone(); clients=c.execute("SELECT * FROM clientes ORDER BY nome").fetchall(); bars=c.execute("SELECT * FROM barbeiros WHERE ativo=1 ORDER BY nome").fetchall(); services=c.execute("SELECT * FROM servicos WHERE ativo=1 ORDER BY nome").fetchall(); c.close()
+    return render_template("agenda_edit.html",edit=edit,clientes=clients,barbeiros=bars,servicos=services)
+
+@app.route("/agenda/excluir/<int:id>",methods=["POST"])
+@login_required
+def excluir_agendamento(id):
+    c=db(); c.execute("DELETE FROM agendamentos WHERE id=?",(id,)); c.execute("DELETE FROM vendas WHERE agendamento_id=?",(id,)); c.commit(); c.close(); flash("Agendamento excluído."); return redirect(url_for("agenda"))
 
 @app.route("/agenda/status/<int:id>/<status>")
 @login_required
@@ -163,6 +227,19 @@ def caixa():
     clientes=c.execute("SELECT * FROM clientes ORDER BY nome").fetchall(); bars=c.execute("SELECT * FROM barbeiros WHERE ativo=1 ORDER BY nome").fetchall(); services=c.execute("SELECT * FROM servicos WHERE ativo=1 ORDER BY nome").fetchall()
     c.close(); return render_template("caixa.html",rows=rows,total=total,clientes=clientes,barbeiros=bars,servicos=services,data=d)
 
+@app.route("/caixa/editar/<int:id>",methods=["GET","POST"])
+@login_required
+def editar_venda(id):
+    c=db()
+    if request.method=="POST":
+        c.execute("UPDATE vendas SET cliente_id=?,barbeiro_id=?,servico_id=?,valor=?,pagamento=?,data=? WHERE id=?",(request.form.get("cliente_id") or None,request.form["barbeiro_id"],request.form.get("servico_id") or None,request.form["valor"],request.form["pagamento"],request.form["data"],id)); c.commit(); c.close(); flash("Venda atualizada."); return redirect(url_for("caixa",data=request.form["data"]))
+    edit=c.execute("SELECT * FROM vendas WHERE id=?",(id,)).fetchone(); clientes=c.execute("SELECT * FROM clientes ORDER BY nome").fetchall(); bars=c.execute("SELECT * FROM barbeiros WHERE ativo=1 ORDER BY nome").fetchall(); services=c.execute("SELECT * FROM servicos WHERE ativo=1 ORDER BY nome").fetchall(); c.close(); return render_template("venda_edit.html",edit=edit,clientes=clientes,barbeiros=bars,servicos=services)
+
+@app.route("/caixa/excluir/<int:id>",methods=["POST"])
+@login_required
+def excluir_venda(id):
+    c=db(); c.execute("DELETE FROM vendas WHERE id=?",(id,)); c.commit(); c.close(); flash("Venda excluída."); return redirect(url_for("caixa"))
+
 @app.route("/relatorios")
 @login_required
 def relatorios():
@@ -173,6 +250,17 @@ def relatorios():
     SUM(v.valor)*b.comissao/100 comissao_valor FROM vendas v JOIN barbeiros b ON b.id=v.barbeiro_id WHERE v.data=? GROUP BY b.id""",(d,)).fetchall()
     serv=c.execute("""SELECT s.nome,COUNT(v.id) qtd,SUM(v.valor) total FROM vendas v JOIN servicos s ON s.id=v.servico_id WHERE v.data=? GROUP BY s.id ORDER BY total DESC""",(d,)).fetchall()
     c.close(); return render_template("relatorios.html",data=d,total=total,formas=formas,com=com,serv=serv)
+
+@app.route("/configuracoes",methods=["GET","POST"])
+@login_required
+def configuracoes():
+    c=db(); u=c.execute("SELECT * FROM usuarios WHERE id=?",(session["uid"],)).fetchone()
+    if request.method=="POST":
+        nome=request.form["nome"].strip(); email=request.form["email"].strip(); senha=request.form.get("senha","").strip()
+        if senha: c.execute("UPDATE usuarios SET nome=?,email=?,senha=? WHERE id=?",(nome,email,senha,session["uid"]))
+        else: c.execute("UPDATE usuarios SET nome=?,email=? WHERE id=?",(nome,email,session["uid"]))
+        c.commit(); session["nome"]=nome; flash("Dados do administrador atualizados."); u=c.execute("SELECT * FROM usuarios WHERE id=?",(session["uid"],)).fetchone()
+    c.close(); return render_template("configuracoes.html",usuario=u)
 
 # Área pública para o cliente agendar sem login
 @app.route("/agendar",methods=["GET","POST"])
@@ -198,5 +286,8 @@ def horarios():
     c=db(); used=[r["hora"] for r in c.execute("SELECT hora FROM agendamentos WHERE barbeiro_id=? AND data=? AND status!='Cancelado'",(bar,dt)).fetchall()]; c.close()
     return jsonify({"ocupados":used})
 
+# Initialize the database when Gunicorn imports app:app.
+init()
+
 if __name__=="__main__":
-    init(); app.run(host="0.0.0.0",port=5000)
+    app.run(host="0.0.0.0",port=5000)

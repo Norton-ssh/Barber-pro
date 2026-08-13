@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block content %}<div class="top"><h1>Editar agendamento</h1><a class="btn gray" href="/agenda?data={{edit.data}}">Voltar</a></div><div class="panel"><form method="post"><div class="grid"><div>
+<div class="field"><label>Cliente</label><select name="cliente" required>{% for x in clientes %}<option value="{{x.id}}" {% if x.id==edit.cliente_id %}selected{% endif %}>{{x.nome}}</option>{% endfor %}</select></div>
+<div class="field"><label>Barbeiro</label><select name="barbeiro" required>{% for x in barbeiros %}<option value="{{x.id}}" {% if x.id==edit.barbeiro_id %}selected{% endif %}>{{x.nome}}</option>{% endfor %}</select></div></div><div>
+<div class="field"><label>Serviço</label><select name="servico" required>{% for x in servicos %}<option value="{{x.id}}" {% if x.id==edit.servico_id %}selected{% endif %}>{{x.nome}}</option>{% endfor %}</select></div>
+<div class="field"><label>Data</label><input name="data" type="date" value="{{edit.data}}" required></div><div class="field"><label>Hora</label><input name="hora" type="time" value="{{edit.hora}}" required></div></div></div>
+<div class="field"><label>Observações</label><textarea name="observacoes">{{edit.observacoes or ''}}</textarea></div><button class="btn">Salvar alterações</button></form></div>{% endblock %}

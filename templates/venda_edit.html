@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block content %}<div class="top"><h1>Editar venda</h1><a class="btn gray" href="/caixa?data={{edit.data}}">Voltar</a></div><div class="panel"><form method="post"><div class="grid"><div>
+<div class="field"><label>Cliente</label><select name="cliente_id"><option value="">Não cadastrado</option>{% for x in clientes %}<option value="{{x.id}}" {% if x.id==edit.cliente_id %}selected{% endif %}>{{x.nome}}</option>{% endfor %}</select></div>
+<div class="field"><label>Barbeiro</label><select name="barbeiro_id" required>{% for x in barbeiros %}<option value="{{x.id}}" {% if x.id==edit.barbeiro_id %}selected{% endif %}>{{x.nome}}</option>{% endfor %}</select></div></div><div>
+<div class="field"><label>Serviço</label><select name="servico_id"><option value="">-</option>{% for x in servicos %}<option value="{{x.id}}" {% if x.id==edit.servico_id %}selected{% endif %}>{{x.nome}}</option>{% endfor %}</select></div>
+<div class="field"><label>Valor</label><input name="valor" type="number" step=".01" value="{{edit.valor}}" required></div>
+<div class="field"><label>Pagamento</label><select name="pagamento">{% for x in ['PIX','Cartão','Dinheiro','Outro'] %}<option {% if x==edit.pagamento %}selected{% endif %}>{{x}}</option>{% endfor %}</select></div>
+<div class="field"><label>Data</label><input name="data" type="date" value="{{edit.data}}" required></div></div></div><button class="btn">Salvar alterações</button></form></div>{% endblock %}

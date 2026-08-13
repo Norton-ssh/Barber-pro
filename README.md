@@ -1,35 +1,10 @@
-# Barber Pro — Nível 2
+# VIP Barbearia — Sistema online editável
 
-Sistema funcional local para barbearia.
+Sistema de gestão e agendamento para barbearia.
 
-## Login inicial
-E-mail: admin@barberpro.local
-Senha: 123456
+### Personalização sem alterar o código principal
+Use `config.py` para editar nome, descrição, endereço, telefone, Instagram, horários, cores, textos dos campos e textos do agendamento.
 
-Troque a senha e a SECRET_KEY antes de produção.
+Use `static/logo.png` ou `static/logo.svg` para a logo.
 
-## Recursos
-- Login administrativo
-- Dashboard
-- Clientes
-- Barbeiros e comissão
-- Serviços
-- Agenda com prevenção de conflito
-- Conclusão de agendamento gerando venda
-- Caixa
-- Relatório por dia
-- Comissão por barbeiro
-- Serviços mais vendidos
-- Área pública `/agendar` para clientes
-- API de horários ocupados
-- SQLite persistente
-
-## Rodar
-python -m pip install -r requirements.txt
-python app.py
-
-Abra http://localhost:5000
-Área de agendamento do cliente: http://localhost:5000/agendar
-
-## Produção
-Para publicar na internet, usar servidor com HTTPS, PostgreSQL, senha com hash, backups e autenticação reforçada. WhatsApp requer integração com um provedor/API oficial.
+Veja `GUIA_EDITAVEL.md`.

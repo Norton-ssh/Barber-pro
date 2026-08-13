@@ -1,1 +1,13 @@
-{% extends "base.html" %}{% block content %}<h1>Clientes</h1><div class="grid"><div class="panel"><h2>Novo cliente</h2><form method="post">{% for n,l in [('nome','Nome'),('telefone','Telefone'),('email','E-mail'),('aniversario','Aniversário')] %}<div class="field"><label>{{l}}</label><input name="{{n}}" {% if n=='aniversario' %}type="date"{% endif %} {% if n=='nome' %}required{% endif %}></div>{% endfor %}<div class="field"><label>Observações</label><textarea name="observacoes"></textarea></div><button class="btn">Cadastrar</button></form></div><div class="panel"><h2>Clientes</h2><table class="table"><tr><th>Nome</th><th>Telefone</th><th>E-mail</th></tr>{% for r in rows %}<tr><td>{{r.nome}}</td><td>{{r.telefone}}</td><td>{{r.email}}</td></tr>{% endfor %}</table></div></div>{% endblock %}
+{% extends "base.html" %}{% block content %}
+<div class="top"><h1>Clientes</h1><a class="btn" href="/clientes">+ Novo cliente</a></div>
+<div class="grid"><div class="panel"><h2>{% if edit %}Editar cliente{% else %}Novo cliente{% endif %}</h2>
+<form method="post" action="{% if edit %}/clientes/editar/{{edit.id}}{% else %}/clientes{% endif %}">
+<div class="field"><label>{{cfg.FIELD_LABELS.client_name}}</label><input name="nome" value="{{edit.nome if edit else ''}}" required></div>
+<div class="field"><label>{{cfg.FIELD_LABELS.phone}}</label><input name="telefone" value="{{edit.telefone if edit else ''}}"></div>
+<div class="field"><label>{{cfg.FIELD_LABELS.email}}</label><input name="email" value="{{edit.email if edit else ''}}"></div>
+<div class="field"><label>{{cfg.FIELD_LABELS.birthday}}</label><input name="aniversario" type="date" value="{{edit.aniversario if edit else ''}}"></div>
+<div class="field"><label>{{cfg.FIELD_LABELS.notes}}</label><textarea name="observacoes">{{edit.observacoes if edit else ''}}</textarea></div>
+<button class="btn">{% if edit %}Salvar alterações{% else %}Cadastrar{% endif %}</button>
+{% if edit %}<a class="btn gray" href="/clientes">Cancelar</a>{% endif %}</form></div>
+<div class="panel"><h2>Clientes cadastrados</h2><table class="table"><tr><th>Nome</th><th>Telefone</th><th>E-mail</th><th>Ações</th></tr>
+{% for r in rows %}<tr><td>{{r.nome}}</td><td>{{r.telefone}}</td><td>{{r.email}}</td><td class="actions"><a class="btn gray" href="/clientes/editar/{{r.id}}">Editar</a><form method="post" action="/clientes/excluir/{{r.id}}"><button class="btn red" onclick="return confirm('Excluir este cliente?')">Excluir</button></form></td></tr>{% endfor %}</table></div></div>{% endblock %}
