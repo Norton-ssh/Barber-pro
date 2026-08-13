@@ -60,3 +60,5 @@ PUBLIC_BOOKING_TITLE = "Agende seu horário"
 PUBLIC_BOOKING_BUTTON = "Solicitar agendamento"
 PUBLIC_BOOKING_DESCRIPTION = "Escolha seu serviço, barbeiro, data e horário."
 LOGIN_SUBTITLE = "Entrar no painel administrativo"
+
+APP_VERSION = "2.0.1 - Permissões + Despesas (PostgreSQL corrigido)"

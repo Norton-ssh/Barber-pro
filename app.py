@@ -47,8 +47,10 @@ def init():
         c.execute("CREATE TABLE IF NOT EXISTS agendamentos(id SERIAL PRIMARY KEY,cliente_id INTEGER,barbeiro_id INTEGER,servico_id INTEGER,data TEXT,hora TEXT,status TEXT DEFAULT 'Agendado',origem TEXT DEFAULT 'painel',observacoes TEXT);")
         c.execute("CREATE TABLE IF NOT EXISTS vendas(id SERIAL PRIMARY KEY,cliente_id INTEGER,barbeiro_id INTEGER,servico_id INTEGER,valor REAL,pagamento TEXT,data TEXT,hora TEXT,agendamento_id INTEGER);")
         c.execute("CREATE TABLE IF NOT EXISTS despesas(id SERIAL PRIMARY KEY,descricao TEXT NOT NULL,valor REAL NOT NULL,tipo TEXT NOT NULL DEFAULT 'Variável',data TEXT NOT NULL,recorrente INTEGER DEFAULT 0,observacoes TEXT);")
-        try: c.execute("ALTER TABLE usuarios ADD COLUMN ativo INTEGER DEFAULT 1")
-        except Exception: pass
+        # Migração segura para bancos PostgreSQL já existentes.
+        col = c.execute("SELECT 1 FROM information_schema.columns WHERE table_name='usuarios' AND column_name='ativo'").fetchone()
+        if not col:
+            c.execute("ALTER TABLE usuarios ADD COLUMN ativo INTEGER DEFAULT 1")
     else:
         c.executescript("""
         CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY AUTOINCREMENT,nome TEXT,email TEXT UNIQUE,senha TEXT,papel TEXT DEFAULT 'Administrador',ativo INTEGER DEFAULT 1);
