@@ -18,8 +18,6 @@ class CompatConnection:
     def executemany(self, sql, seq):
         if self.postgres:
             sql=sql.replace("?", "%s")
-            with self.conn.cursor() as cur:
-                return cur.executemany(sql, seq)
         return self.conn.executemany(sql, seq)
     def executescript(self, script):
         return self.conn.execute(script)
@@ -200,8 +198,5 @@ def horarios():
     c=db(); used=[r["hora"] for r in c.execute("SELECT hora FROM agendamentos WHERE barbeiro_id=? AND data=? AND status!='Cancelado'",(bar,dt)).fetchall()]; c.close()
     return jsonify({"ocupados":used})
 
-# Initialize the database when Gunicorn imports app:app.
-init()
-
 if __name__=="__main__":
-    app.run(host="0.0.0.0",port=5000)
+    init(); app.run(host="0.0.0.0",port=5000)
