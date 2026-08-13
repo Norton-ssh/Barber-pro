@@ -6,7 +6,7 @@
 # Depois de salvar e publicar no GitHub, o Render atualizará o site.
 # ============================================================
 
-APP_VERSION = "VIP Barbearia 1.1.0"
+APP_VERSION = "VIP Barbearia 2.0.0 — Permissões + Despesas"
 
 # DADOS DA LOJA
 STORE_NAME = "VIP Barbearia"

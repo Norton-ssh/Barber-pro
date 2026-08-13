@@ -10,4 +10,4 @@
 <button class="btn">{% if edit %}Salvar alterações{% else %}Cadastrar{% endif %}</button>
 {% if edit %}<a class="btn gray" href="/clientes">Cancelar</a>{% endif %}</form></div>
 <div class="panel"><h2>Clientes cadastrados</h2><table class="table"><tr><th>Nome</th><th>Telefone</th><th>E-mail</th><th>Ações</th></tr>
-{% for r in rows %}<tr><td>{{r.nome}}</td><td>{{r.telefone}}</td><td>{{r.email}}</td><td class="actions"><a class="btn gray" href="/clientes/editar/{{r.id}}">Editar</a><form method="post" action="/clientes/excluir/{{r.id}}"><button class="btn red" onclick="return confirm('Excluir este cliente?')">Excluir</button></form></td></tr>{% endfor %}</table></div></div>{% endblock %}
+{% for r in rows %}<tr><td>{{r.nome}}</td><td>{{r.telefone}}</td><td>{{r.email}}</td><td class="actions">{% if can_edit %}<a class="btn gray" href="/clientes/editar/{{r.id}}">Editar</a><form method="post" action="/clientes/excluir/{{r.id}}"><button class="btn red" onclick="return confirm('Excluir este cliente?')">Excluir</button></form>{% endif %}</td></tr>{% endfor %}</table></div></div>{% endblock %}

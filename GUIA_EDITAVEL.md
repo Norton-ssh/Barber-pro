@@ -72,16 +72,10 @@ Se quiser mudar somente aparência, marca, campos e textos, prefira `config.py` 
 O PostgreSQL do Render é separado do código. Alterar `config.py` ou HTML não apaga clientes/agendamentos.
 
 
-## WhatsApp e Pix
+## Permissões
+- Administrador: acesso total, incluindo Configurações e Usuários.
+- Colaborador Fixo: inserir, editar e excluir registros; não acessa Configurações.
+- Colaborador Eventual: somente inserir novos registros; não pode editar, excluir, cancelar ou concluir.
 
-No `config.py`, você pode alterar diretamente:
-
-```python
-STORE_WHATSAPP = "5565996002369"
-WHATSAPP_LINK = "https://wa.me/5565996002369?text=Ol%C3%A1%20tudo%20bem%3F"
-PIX_KEY = "65996002369"
-PIX_NAME = "VIP Barbearia"
-PAYMENT_NOTE = "Após o agendamento, você pode enviar o comprovante pelo WhatsApp."
-```
-
-Esses dados aparecem na página pública de agendamento. O cliente pode copiar a chave Pix e abrir o WhatsApp pelo botão.
+## Despesas
+Use o menu Despesas. Tipo Fixa + recorrente mantém a despesa como recorrente; Variável é lançada uma única vez. O dashboard e os relatórios descontam as despesas do resultado.

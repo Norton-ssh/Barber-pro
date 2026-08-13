@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block content %}
+<div class="top"><div><h1>Usuários e permissões</h1><div class="muted">Somente Administrador pode criar e gerenciar usuários.</div></div></div>
+<div class="grid"><div class="panel"><h2>Novo usuário</h2><form method="post">
+<div class="field"><label>Nome</label><input name="nome" required></div>
+<div class="field"><label>E-mail</label><input name="email" type="email" required></div>
+<div class="field"><label>Senha inicial</label><input name="senha" type="password" required></div>
+<div class="field"><label>Permissão</label><select name="papel">{% for r in roles %}<option>{{r}}</option>{% endfor %}</select></div>
+<button class="btn">Criar usuário</button></form></div>
+<div class="panel"><h2>Usuários cadastrados</h2><table class="table"><tr><th>Nome</th><th>E-mail</th><th>Permissão</th><th>Status</th><th>Ações</th></tr>{% for u in rows %}<tr><td>{{u.nome}}</td><td>{{u.email}}</td><td>{{u.papel}}</td><td>{{'Ativo' if u.ativo else 'Inativo'}}</td><td>{% if u.id != session.get('uid') %}<form method="post" action="/usuarios/status/{{u.id}}" style="display:inline"><button class="btn gray">{{'Desativar' if u.ativo else 'Ativar'}}</button></form><form method="post" action="/usuarios/excluir/{{u.id}}" style="display:inline"><button class="btn red" onclick="return confirm('Excluir este usuário?')">Excluir</button></form>{% else %}<span class="muted">Usuário atual</span>{% endif %}</td></tr>{% endfor %}</table></div></div>
+<div class="panel" style="margin-top:14px"><h2>Como funciona</h2><p><b>Administrador:</b> acesso total, inclusive configurações e usuários.</p><p><b>Colaborador Fixo:</b> pode inserir, editar e excluir cadastros, agenda, caixa e despesas. Não acessa configurações.</p><p><b>Colaborador Eventual:</b> pode somente inserir novos registros. Não pode editar, excluir, cancelar ou concluir registros.</p></div>
+{% endblock %}

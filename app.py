@@ -40,25 +40,31 @@ def init():
     c=db()
     postgres = bool(os.environ.get("DATABASE_URL"))
     if postgres:
-        c.execute("""
-        CREATE TABLE IF NOT EXISTS usuarios(id SERIAL PRIMARY KEY,nome TEXT,email TEXT UNIQUE,senha TEXT,papel TEXT DEFAULT 'admin');
-        """)
-        c.execute("""CREATE TABLE IF NOT EXISTS clientes(id SERIAL PRIMARY KEY,nome TEXT NOT NULL,telefone TEXT,email TEXT,aniversario TEXT,observacoes TEXT);""")
-        c.execute("""CREATE TABLE IF NOT EXISTS barbeiros(id SERIAL PRIMARY KEY,nome TEXT NOT NULL,telefone TEXT,comissao REAL DEFAULT 40,ativo INTEGER DEFAULT 1);""")
-        c.execute("""CREATE TABLE IF NOT EXISTS servicos(id SERIAL PRIMARY KEY,nome TEXT NOT NULL,duracao INTEGER DEFAULT 30,preco REAL DEFAULT 0,ativo INTEGER DEFAULT 1);""")
-        c.execute("""CREATE TABLE IF NOT EXISTS agendamentos(id SERIAL PRIMARY KEY,cliente_id INTEGER,barbeiro_id INTEGER,servico_id INTEGER,data TEXT,hora TEXT,status TEXT DEFAULT 'Agendado',origem TEXT DEFAULT 'painel',observacoes TEXT);""")
-        c.execute("""CREATE TABLE IF NOT EXISTS vendas(id SERIAL PRIMARY KEY,cliente_id INTEGER,barbeiro_id INTEGER,servico_id INTEGER,valor REAL,pagamento TEXT,data TEXT,hora TEXT,agendamento_id INTEGER);""")
+        c.execute("CREATE TABLE IF NOT EXISTS usuarios(id SERIAL PRIMARY KEY,nome TEXT,email TEXT UNIQUE,senha TEXT,papel TEXT DEFAULT 'Administrador',ativo INTEGER DEFAULT 1);")
+        c.execute("CREATE TABLE IF NOT EXISTS clientes(id SERIAL PRIMARY KEY,nome TEXT NOT NULL,telefone TEXT,email TEXT,aniversario TEXT,observacoes TEXT);")
+        c.execute("CREATE TABLE IF NOT EXISTS barbeiros(id SERIAL PRIMARY KEY,nome TEXT NOT NULL,telefone TEXT,comissao REAL DEFAULT 40,ativo INTEGER DEFAULT 1);")
+        c.execute("CREATE TABLE IF NOT EXISTS servicos(id SERIAL PRIMARY KEY,nome TEXT NOT NULL,duracao INTEGER DEFAULT 30,preco REAL DEFAULT 0,ativo INTEGER DEFAULT 1);")
+        c.execute("CREATE TABLE IF NOT EXISTS agendamentos(id SERIAL PRIMARY KEY,cliente_id INTEGER,barbeiro_id INTEGER,servico_id INTEGER,data TEXT,hora TEXT,status TEXT DEFAULT 'Agendado',origem TEXT DEFAULT 'painel',observacoes TEXT);")
+        c.execute("CREATE TABLE IF NOT EXISTS vendas(id SERIAL PRIMARY KEY,cliente_id INTEGER,barbeiro_id INTEGER,servico_id INTEGER,valor REAL,pagamento TEXT,data TEXT,hora TEXT,agendamento_id INTEGER);")
+        c.execute("CREATE TABLE IF NOT EXISTS despesas(id SERIAL PRIMARY KEY,descricao TEXT NOT NULL,valor REAL NOT NULL,tipo TEXT NOT NULL DEFAULT 'Variável',data TEXT NOT NULL,recorrente INTEGER DEFAULT 0,observacoes TEXT);")
+        try: c.execute("ALTER TABLE usuarios ADD COLUMN ativo INTEGER DEFAULT 1")
+        except Exception: pass
     else:
         c.executescript("""
-        CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY AUTOINCREMENT,nome TEXT,email TEXT UNIQUE,senha TEXT,papel TEXT DEFAULT 'admin');
+        CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY AUTOINCREMENT,nome TEXT,email TEXT UNIQUE,senha TEXT,papel TEXT DEFAULT 'Administrador',ativo INTEGER DEFAULT 1);
         CREATE TABLE IF NOT EXISTS clientes(id INTEGER PRIMARY KEY AUTOINCREMENT,nome TEXT NOT NULL,telefone TEXT,email TEXT,aniversario TEXT,observacoes TEXT);
         CREATE TABLE IF NOT EXISTS barbeiros(id INTEGER PRIMARY KEY AUTOINCREMENT,nome TEXT NOT NULL,telefone TEXT,comissao REAL DEFAULT 40,ativo INTEGER DEFAULT 1);
         CREATE TABLE IF NOT EXISTS servicos(id INTEGER PRIMARY KEY AUTOINCREMENT,nome TEXT NOT NULL,duracao INTEGER DEFAULT 30,preco REAL DEFAULT 0,ativo INTEGER DEFAULT 1);
         CREATE TABLE IF NOT EXISTS agendamentos(id INTEGER PRIMARY KEY AUTOINCREMENT,cliente_id INTEGER,barbeiro_id INTEGER,servico_id INTEGER,data TEXT,hora TEXT,status TEXT DEFAULT 'Agendado',origem TEXT DEFAULT 'painel',observacoes TEXT);
         CREATE TABLE IF NOT EXISTS vendas(id INTEGER PRIMARY KEY AUTOINCREMENT,cliente_id INTEGER,barbeiro_id INTEGER,servico_id INTEGER,valor REAL,pagamento TEXT,data TEXT,hora TEXT,agendamento_id INTEGER);
+        CREATE TABLE IF NOT EXISTS despesas(id INTEGER PRIMARY KEY AUTOINCREMENT,descricao TEXT NOT NULL,valor REAL NOT NULL,tipo TEXT NOT NULL DEFAULT 'Variável',data TEXT NOT NULL,recorrente INTEGER DEFAULT 0,observacoes TEXT);
         """)
+        try: c.execute("ALTER TABLE usuarios ADD COLUMN ativo INTEGER DEFAULT 1")
+        except Exception: pass
+    # Legacy admin values -> new role names
+    c.execute("UPDATE usuarios SET papel='Administrador' WHERE papel IS NULL OR papel='' OR LOWER(papel)='admin'")
     if not c.execute("SELECT 1 FROM usuarios LIMIT 1").fetchone():
-        c.execute("INSERT INTO usuarios(nome,email,senha,papel) VALUES(?,?,?,?)",("Administrador","admin@vipbarbearia.com","123456","admin"))
+        c.execute("INSERT INTO usuarios(nome,email,senha,papel,ativo) VALUES(?,?,?,?,?)",("Administrador","admin@vipbarbearia.com","123456","Administrador",1))
     if not c.execute("SELECT 1 FROM servicos LIMIT 1").fetchone():
         rows=[("Corte",40,40),("Barba",30,30),("Corte + Barba",60,60),("Sobrancelha",15,15)]
         c.executemany("INSERT INTO servicos(nome,duracao,preco) VALUES(?,?,?)",rows)
@@ -68,7 +74,7 @@ def init():
 
 @app.context_processor
 def inject_config():
-    return {"cfg": config}
+    return {"cfg": config, "ROLE_ADMIN": ROLE_ADMIN, "ROLE_FIXED": ROLE_FIXED, "ROLE_EVENTUAL": ROLE_EVENTUAL, "can_edit": can_edit(), "is_admin": is_admin(), "can_insert": can_insert()}
 
 def login_required(f):
     @wraps(f)
@@ -77,12 +83,53 @@ def login_required(f):
         return f(*a,**k)
     return w
 
+ROLE_ADMIN = "Administrador"
+ROLE_FIXED = "Colaborador Fixo"
+ROLE_EVENTUAL = "Colaborador Eventual"
+
+ROLE_LABELS = {ROLE_ADMIN: ROLE_ADMIN, ROLE_FIXED: ROLE_FIXED, ROLE_EVENTUAL: ROLE_EVENTUAL}
+
+
+def current_role():
+    role = session.get("papel", ROLE_ADMIN)
+    if role == "admin":
+        return ROLE_ADMIN
+    return role
+
+
+def can_insert():
+    return bool(session.get("uid"))
+
+
+def can_edit():
+    return current_role() in (ROLE_ADMIN, ROLE_FIXED)
+
+
+def is_admin():
+    return current_role() == ROLE_ADMIN
+
+
+def permission_required(kind):
+    def deco(f):
+        @wraps(f)
+        def w(*a,**k):
+            if not session.get("uid"):
+                return redirect(url_for("login"))
+            allowed = (kind == "insert") or (kind == "edit" and can_edit()) or (kind == "admin" and is_admin())
+            if not allowed:
+                flash("Seu perfil não tem permissão para esta ação.")
+                return redirect(request.referrer or url_for("dashboard"))
+            return f(*a,**k)
+        return w
+    return deco
+
 @app.route("/login",methods=["GET","POST"])
 def login():
     if request.method=="POST":
-        c=db(); u=c.execute("SELECT * FROM usuarios WHERE email=? AND senha=?",(request.form["email"],request.form["senha"])).fetchone(); c.close()
+        c=db(); u=c.execute("SELECT * FROM usuarios WHERE email=? AND senha=? AND COALESCE(ativo,1)=1",(request.form["email"],request.form["senha"])).fetchone(); c.close()
         if u:
-            session["uid"]=u["id"]; session["nome"]=u["nome"]; session["papel"]=u["papel"]
+            role = ROLE_ADMIN if u["papel"] in (None, "", "admin") else u["papel"]
+            session["uid"]=u["id"]; session["nome"]=u["nome"]; session["papel"]=role
             return redirect(url_for("dashboard"))
         flash("E-mail ou senha inválidos.")
     return render_template("login.html")
@@ -97,10 +144,11 @@ def dashboard():
     fat=c.execute("SELECT COALESCE(SUM(valor),0) v FROM vendas WHERE data=?",(hoje,)).fetchone()["v"]
     atend=c.execute("SELECT COUNT(*) n FROM vendas WHERE data=?",(hoje,)).fetchone()["n"]
     ag=c.execute("SELECT COUNT(*) n FROM agendamentos WHERE data=? AND status!='Cancelado'",(hoje,)).fetchone()["n"]
+    desp=c.execute("SELECT COALESCE(SUM(valor),0) v FROM despesas WHERE data=? OR (tipo='Fixa' AND recorrente=1 AND data<=?)",(hoje,hoje)).fetchone()["v"]
     prox=c.execute("""SELECT a.*,cl.nome cliente,b.nome barbeiro,s.nome servico,s.preco FROM agendamentos a
     LEFT JOIN clientes cl ON cl.id=a.cliente_id LEFT JOIN barbeiros b ON b.id=a.barbeiro_id
     LEFT JOIN servicos s ON s.id=a.servico_id WHERE a.data=? ORDER BY a.hora LIMIT 10""",(hoje,)).fetchall()
-    c.close(); return render_template("dashboard.html",fat=fat,atend=atend,ag=ag,ticket=fat/atend if atend else 0,prox=prox,hoje=hoje)
+    c.close(); return render_template("dashboard.html",fat=fat,atend=atend,ag=ag,desp=desp,lucro=fat-desp,ticket=fat/atend if atend else 0,prox=prox,hoje=hoje)
 
 @app.route("/clientes",methods=["GET","POST"])
 @login_required
@@ -112,7 +160,7 @@ def clientes():
     return render_template("clientes.html",rows=rows,edit=None)
 
 @app.route("/clientes/editar/<int:id>",methods=["GET","POST"])
-@login_required
+@permission_required("edit")
 def editar_cliente(id):
     c=db()
     if request.method=="POST":
@@ -121,7 +169,7 @@ def editar_cliente(id):
     return render_template("clientes.html",rows=rows,edit=edit)
 
 @app.route("/clientes/excluir/<int:id>",methods=["POST"])
-@login_required
+@permission_required("edit")
 def excluir_cliente(id):
     c=db(); c.execute("DELETE FROM clientes WHERE id=?",(id,)); c.commit(); c.close(); flash("Cliente excluído."); return redirect(url_for("clientes"))
 
@@ -134,7 +182,7 @@ def barbeiros():
     rows=c.execute("SELECT * FROM barbeiros ORDER BY nome").fetchall(); c.close(); return render_template("barbeiros.html",rows=rows,edit=None)
 
 @app.route("/barbeiros/editar/<int:id>",methods=["GET","POST"])
-@login_required
+@permission_required("edit")
 def editar_barbeiro(id):
     c=db()
     if request.method=="POST":
@@ -142,7 +190,7 @@ def editar_barbeiro(id):
     edit=c.execute("SELECT * FROM barbeiros WHERE id=?",(id,)).fetchone(); rows=c.execute("SELECT * FROM barbeiros ORDER BY nome").fetchall(); c.close(); return render_template("barbeiros.html",rows=rows,edit=edit)
 
 @app.route("/barbeiros/excluir/<int:id>",methods=["POST"])
-@login_required
+@permission_required("edit")
 def excluir_barbeiro(id):
     c=db(); c.execute("DELETE FROM barbeiros WHERE id=?",(id,)); c.commit(); c.close(); flash("Barbeiro excluído."); return redirect(url_for("barbeiros"))
 
@@ -155,7 +203,7 @@ def servicos():
     rows=c.execute("SELECT * FROM servicos ORDER BY nome").fetchall(); c.close(); return render_template("servicos.html",rows=rows,edit=None)
 
 @app.route("/servicos/editar/<int:id>",methods=["GET","POST"])
-@login_required
+@permission_required("edit")
 def editar_servico(id):
     c=db()
     if request.method=="POST":
@@ -163,7 +211,7 @@ def editar_servico(id):
     edit=c.execute("SELECT * FROM servicos WHERE id=?",(id,)).fetchone(); rows=c.execute("SELECT * FROM servicos ORDER BY nome").fetchall(); c.close(); return render_template("servicos.html",rows=rows,edit=edit)
 
 @app.route("/servicos/excluir/<int:id>",methods=["POST"])
-@login_required
+@permission_required("edit")
 def excluir_servico(id):
     c=db(); c.execute("DELETE FROM servicos WHERE id=?",(id,)); c.commit(); c.close(); flash("Serviço excluído."); return redirect(url_for("servicos"))
 
@@ -184,7 +232,7 @@ def agenda():
     return render_template("agenda.html",rows=rows,clientes=clients,barbeiros=bars,servicos=services,data=d)
 
 @app.route("/agenda/editar/<int:id>",methods=["GET","POST"])
-@login_required
+@permission_required("edit")
 def editar_agendamento(id):
     c=db()
     if request.method=="POST":
@@ -197,12 +245,12 @@ def editar_agendamento(id):
     return render_template("agenda_edit.html",edit=edit,clientes=clients,barbeiros=bars,servicos=services)
 
 @app.route("/agenda/excluir/<int:id>",methods=["POST"])
-@login_required
+@permission_required("edit")
 def excluir_agendamento(id):
     c=db(); c.execute("DELETE FROM agendamentos WHERE id=?",(id,)); c.execute("DELETE FROM vendas WHERE agendamento_id=?",(id,)); c.commit(); c.close(); flash("Agendamento excluído."); return redirect(url_for("agenda"))
 
 @app.route("/agenda/status/<int:id>/<status>")
-@login_required
+@permission_required("edit")
 def status(id,status):
     c=db(); c.execute("UPDATE agendamentos SET status=? WHERE id=?",(status,id))
     if status=="Concluído":
@@ -228,7 +276,7 @@ def caixa():
     c.close(); return render_template("caixa.html",rows=rows,total=total,clientes=clientes,barbeiros=bars,servicos=services,data=d)
 
 @app.route("/caixa/editar/<int:id>",methods=["GET","POST"])
-@login_required
+@permission_required("edit")
 def editar_venda(id):
     c=db()
     if request.method=="POST":
@@ -236,7 +284,7 @@ def editar_venda(id):
     edit=c.execute("SELECT * FROM vendas WHERE id=?",(id,)).fetchone(); clientes=c.execute("SELECT * FROM clientes ORDER BY nome").fetchall(); bars=c.execute("SELECT * FROM barbeiros WHERE ativo=1 ORDER BY nome").fetchall(); services=c.execute("SELECT * FROM servicos WHERE ativo=1 ORDER BY nome").fetchall(); c.close(); return render_template("venda_edit.html",edit=edit,clientes=clientes,barbeiros=bars,servicos=services)
 
 @app.route("/caixa/excluir/<int:id>",methods=["POST"])
-@login_required
+@permission_required("edit")
 def excluir_venda(id):
     c=db(); c.execute("DELETE FROM vendas WHERE id=?",(id,)); c.commit(); c.close(); flash("Venda excluída."); return redirect(url_for("caixa"))
 
@@ -245,22 +293,80 @@ def excluir_venda(id):
 def relatorios():
     d=request.args.get("data",date.today().isoformat()); c=db()
     total=c.execute("SELECT COALESCE(SUM(valor),0) v FROM vendas WHERE data=?",(d,)).fetchone()["v"]
+    despesas_total=c.execute("SELECT COALESCE(SUM(valor),0) v FROM despesas WHERE data=? OR (tipo='Fixa' AND recorrente=1 AND data<=?)",(d,d)).fetchone()["v"]
     formas=c.execute("SELECT pagamento, SUM(valor) total FROM vendas WHERE data=? GROUP BY pagamento",(d,)).fetchall()
     com=c.execute("""SELECT b.nome,SUM(v.valor) faturamento, b.comissao,
     SUM(v.valor)*b.comissao/100 comissao_valor FROM vendas v JOIN barbeiros b ON b.id=v.barbeiro_id WHERE v.data=? GROUP BY b.id""",(d,)).fetchall()
     serv=c.execute("""SELECT s.nome,COUNT(v.id) qtd,SUM(v.valor) total FROM vendas v JOIN servicos s ON s.id=v.servico_id WHERE v.data=? GROUP BY s.id ORDER BY total DESC""",(d,)).fetchall()
-    c.close(); return render_template("relatorios.html",data=d,total=total,formas=formas,com=com,serv=serv)
+    c.close(); return render_template("relatorios.html",data=d,total=total,despesas_total=despesas_total,liquido=total-despesas_total,formas=formas,com=com,serv=serv)
 
 @app.route("/configuracoes",methods=["GET","POST"])
-@login_required
+@permission_required("admin")
 def configuracoes():
     c=db(); u=c.execute("SELECT * FROM usuarios WHERE id=?",(session["uid"],)).fetchone()
     if request.method=="POST":
         nome=request.form["nome"].strip(); email=request.form["email"].strip(); senha=request.form.get("senha","").strip()
         if senha: c.execute("UPDATE usuarios SET nome=?,email=?,senha=? WHERE id=?",(nome,email,senha,session["uid"]))
         else: c.execute("UPDATE usuarios SET nome=?,email=? WHERE id=?",(nome,email,session["uid"]))
-        c.commit(); session["nome"]=nome; flash("Dados do administrador atualizados."); u=c.execute("SELECT * FROM usuarios WHERE id=?",(session["uid"],)).fetchone()
-    c.close(); return render_template("configuracoes.html",usuario=u)
+        c.commit(); session["nome"]=nome; session["email"]=email; session["papel"]=u["papel"] if u else session.get("papel"); flash("Dados do administrador atualizados."); u=c.execute("SELECT * FROM usuarios WHERE id=?",(session["uid"],)).fetchone()
+    users=c.execute("SELECT id,nome,email,papel,COALESCE(ativo,1) ativo FROM usuarios ORDER BY nome").fetchall()
+    c.close(); return render_template("configuracoes.html",usuario=u,users=users,roles=[ROLE_ADMIN,ROLE_FIXED,ROLE_EVENTUAL])
+
+
+@app.route("/usuarios", methods=["GET", "POST"])
+@permission_required("admin")
+def usuarios():
+    c=db()
+    if request.method == "POST":
+        nome=request.form["nome"].strip(); email=request.form["email"].strip(); senha=request.form["senha"].strip(); papel=request.form["papel"]
+        if papel not in (ROLE_ADMIN, ROLE_FIXED, ROLE_EVENTUAL): papel=ROLE_EVENTUAL
+        try:
+            c.execute("INSERT INTO usuarios(nome,email,senha,papel,ativo) VALUES(?,?,?,?,?)",(nome,email,senha,papel,1)); c.commit(); flash("Usuário criado com sucesso.")
+        except Exception:
+            flash("Não foi possível criar o usuário. Verifique se o e-mail já está cadastrado.")
+    rows=c.execute("SELECT id,nome,email,papel,COALESCE(ativo,1) ativo FROM usuarios ORDER BY nome").fetchall(); c.close()
+    return render_template("usuarios.html", rows=rows, roles=[ROLE_ADMIN,ROLE_FIXED,ROLE_EVENTUAL])
+
+@app.route("/usuarios/status/<int:id>", methods=["POST"])
+@permission_required("admin")
+def usuario_status(id):
+    if id == session.get("uid"):
+        flash("Você não pode desativar o próprio usuário.")
+        return redirect(url_for("usuarios"))
+    c=db(); c.execute("UPDATE usuarios SET ativo=CASE WHEN COALESCE(ativo,1)=1 THEN 0 ELSE 1 END WHERE id=?",(id,)); c.commit(); c.close(); flash("Status do usuário atualizado."); return redirect(url_for("usuarios"))
+
+@app.route("/usuarios/excluir/<int:id>", methods=["POST"])
+@permission_required("admin")
+def excluir_usuario(id):
+    if id == session.get("uid"):
+        flash("Você não pode excluir o próprio usuário.")
+        return redirect(url_for("usuarios"))
+    c=db(); c.execute("DELETE FROM usuarios WHERE id=?",(id,)); c.commit(); c.close(); flash("Usuário excluído."); return redirect(url_for("usuarios"))
+
+@app.route("/despesas", methods=["GET", "POST"])
+@login_required
+def despesas():
+    c=db(); d=request.args.get("data",date.today().isoformat())
+    if request.method == "POST":
+        descricao=request.form["descricao"].strip(); valor=request.form["valor"]; tipo=request.form.get("tipo","Variável"); data_lanc=request.form.get("data",d); recorrente=1 if request.form.get("recorrente") else 0
+        c.execute("INSERT INTO despesas(descricao,valor,tipo,data,recorrente,observacoes) VALUES(?,?,?,?,?,?)",(descricao,valor,tipo,data_lanc,recorrente,request.form.get("observacoes",""))); c.commit(); flash("Despesa lançada."); c.close(); return redirect(url_for("despesas",data=data_lanc))
+    rows=c.execute("SELECT * FROM despesas WHERE data=? OR (tipo='Fixa' AND recorrente=1 AND data<=?) ORDER BY data DESC,id DESC",(d,d)).fetchall()
+    total=c.execute("SELECT COALESCE(SUM(valor),0) v FROM despesas WHERE data=? OR (tipo='Fixa' AND recorrente=1 AND data<=?)",(d,d)).fetchone()["v"]
+    fixas=c.execute("SELECT * FROM despesas WHERE tipo='Fixa' AND recorrente=1 ORDER BY descricao").fetchall()
+    c.close(); return render_template("despesas.html",rows=rows,total=total,fixas=fixas,data=d)
+
+@app.route("/despesas/editar/<int:id>",methods=["GET","POST"])
+@permission_required("edit")
+def editar_despesa(id):
+    c=db()
+    if request.method=="POST":
+        c.execute("UPDATE despesas SET descricao=?,valor=?,tipo=?,data=?,recorrente=?,observacoes=? WHERE id=?",(request.form["descricao"],request.form["valor"],request.form["tipo"],request.form["data"],1 if request.form.get("recorrente") else 0,request.form.get("observacoes",""),id)); c.commit(); c.close(); flash("Despesa atualizada."); return redirect(url_for("despesas",data=request.form["data"]))
+    edit=c.execute("SELECT * FROM despesas WHERE id=?",(id,)).fetchone(); c.close(); return render_template("despesa_edit.html",edit=edit)
+
+@app.route("/despesas/excluir/<int:id>",methods=["POST"])
+@permission_required("edit")
+def excluir_despesa(id):
+    c=db(); c.execute("DELETE FROM despesas WHERE id=?",(id,)); c.commit(); c.close(); flash("Despesa excluída."); return redirect(url_for("despesas"))
 
 # Área pública para o cliente agendar sem login
 @app.route("/agendar",methods=["GET","POST"])
