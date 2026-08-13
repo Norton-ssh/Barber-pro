@@ -18,6 +18,8 @@ class CompatConnection:
     def executemany(self, sql, seq):
         if self.postgres:
             sql=sql.replace("?", "%s")
+            with self.conn.cursor() as cur:
+                return cur.executemany(sql, seq)
         return self.conn.executemany(sql, seq)
     def executescript(self, script):
         return self.conn.execute(script)
